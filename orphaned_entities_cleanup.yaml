@@ -47,7 +47,7 @@ blueprint:
       description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
       selector:
         action: {}
-    
+
 trigger:
   - platform: time
     at: !input time_of_day
@@ -58,7 +58,7 @@ action:
   - alias: "Aktuelle verwaiste Entitäten abrufen"
     service: homeassistant.list_orphaned_database_entities
     response_variable: current_orphaned
-  
+
   # 2. Schritt: Liste der Entitäten filtern, die länger als die Karenzzeit inaktiv waren
   - alias: "Liste der länger inaktiven Entitäten erstellen"
     variables:
@@ -70,13 +70,13 @@ action:
           {% endif %}
         {% endfor %}
         {{ result.list }}
-  
+
   # 3. Schritt: Entitäten finden, die gelöscht werden sollen (Schnittmenge der Listen)
   - variables:
       history_helper: 'input_text.homeassistant_cleanup_history'
       last_week_orphaned: "{{ states(history_helper).split(',') if states(history_helper) | length > 0 else [] }}"
       entities_to_delete: "{{ inactive_orphaned | select('in', last_week_orphaned) | list }}"
-        
+
   # 4. Schritt: Lösch- und Benachrichtigungslogik ausführen
   - alias: "Löschen und Benachrichtigen"
     if: "{{ entities_to_delete | count > 0 }}"
@@ -88,26 +88,26 @@ action:
           message: |
             Die folgenden {{ entities_to_delete | count }} Entitäten, die alle Kriterien erfüllen, werden gelöscht:
             {{ entities_to_delete | join('\n') }}
-            
+
       - alias: "Verwaiste Entitäten löschen"
         service: recorder.purge_entities
         data:
           keep_days: 0
           entity_id: "{{ entities_to_delete }}"
-          
+
       - alias: "Abschlussbenachrichtigung senden"
         service: !input notification_service
         data:
           title: "Home Assistant Cleanup abgeschlossen"
           message: "Es wurden {{ entities_to_delete | count }} Entitäten gelöscht."
-          
+
     else:
       - alias: "Keine Entitäten zu löschen"
         service: !input notification_service
         data:
           title: "Home Assistant Cleanup"
           message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
-  
+
   # 5. Schritt: Speichere die aktuelle Liste für die nächste Prüfung
   - service: input_text.set_value
     data:
