@@ -1,6 +1,6 @@
 blueprint:
-  name: Flexible Safe Orphaned Entities Cleanup
-  description: "Automatisierte Bereinigung verwaister Entitäten mit konfigurierbarer Karenzzeit und Benachrichtigungen."
+  name: Flexible, automatische Bereinigung verwaister Entitäten
+  description: "Automatisierte Bereinigung verwaister Entitäten mit konfigurierbarer Karenzzeit und Benachrichtigungen. Erstellt einen internen Helfer für die Historie."
   domain: automation
   source_url: https://gist.github.com/your-username/your-gist-id
   input:
@@ -42,19 +42,13 @@ blueprint:
           max: 168
           mode: box
           unit_of_measurement: Stunden
-    notification_device:
-      name: Benachrichtigungsdienst(e)
-      description: Der/die Dienst(e), der/die die Benachrichtigungen senden soll(en). Mehrere können ausgewählt werden.
+    notification_service:
+      name: Benachrichtigungsdienst
+      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
       selector:
         entity:
           domain: notify
           multiple: true
-    history_helper:
-      name: Historien-Helfer
-      description: Der Textfeld-Helfer, der die Historie der verwaisten Entitäten speichert (z.B. input_text.orphaned_entities_history).
-      selector:
-        entity:
-          domain: input_text
 
 trigger:
   - platform: time
@@ -70,11 +64,10 @@ action:
   # 2. Schritt: Liste der Entitäten filtern, die länger als die Karenzzeit inaktiv waren
   - alias: "Liste der länger inaktiven Entitäten erstellen"
     variables:
-      inactive_orphaned: |
+      inactive_orphaned: >
         {% set result = namespace(list=[]) %}
-        {% set grace_period_seconds = (states('input_number.' ~ (history_helper.split('.')[1]) ~ '_grace_period') | int) * 3600 %}
         {% for entity_id in current_orphaned.entities %}
-          {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > (input_number.{{ grace_period_hours }} * 3600) %}
+          {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > (input_number.grace_period_hours | int) * 3600 %}
             {% set result.list = result.list + [entity_id] %}
           {% endif %}
         {% endfor %}
@@ -82,6 +75,7 @@ action:
   
   # 3. Schritt: Entitäten finden, die gelöscht werden sollen (Schnittmenge der Listen)
   - variables:
+      history_helper: 'input_text.homeassistant_cleanup_history'
       last_week_orphaned: "{{ states(history_helper).split(',') if states(history_helper) | length > 0 else [] }}"
       entities_to_delete: "{{ inactive_orphaned | select('in', last_week_orphaned) | list }}"
         
@@ -90,7 +84,7 @@ action:
     if: "{{ entities_to_delete | count > 0 }}"
     then:
       - alias: "Benachrichtigung mit Liste senden"
-        service: !input notification_device
+        service: !input notification_service
         data:
           title: "Home Assistant Cleanup"
           message: |
@@ -104,14 +98,14 @@ action:
           entity_id: "{{ entities_to_delete }}"
           
       - alias: "Abschlussbenachrichtigung senden"
-        service: !input notification_device
+        service: !input notification_service
         data:
           title: "Home Assistant Cleanup abgeschlossen"
           message: "Es wurden {{ entities_to_delete | count }} Entitäten gelöscht."
           
     else:
       - alias: "Keine Entitäten zu löschen"
-        service: !input notification_device
+        service: !input notification_service
         data:
           title: "Home Assistant Cleanup"
           message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
@@ -121,4 +115,4 @@ action:
     data:
       value: "{{ current_orphaned.entities | join(',') }}"
     target:
-      entity_id: !input history_helper
+      entity_id: 'input_text.homeassistant_cleanup_history'
