@@ -46,10 +46,8 @@ blueprint:
       name: Benachrichtigungsdienst
       description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
       selector:
-        entity:
-          domain: notify
-          multiple: true
-
+        action: {}
+    
 trigger:
   - platform: time
     at: !input time_of_day
@@ -64,7 +62,7 @@ action:
   # 2. Schritt: Liste der Entitäten filtern, die länger als die Karenzzeit inaktiv waren
   - alias: "Liste der länger inaktiven Entitäten erstellen"
     variables:
-      inactive_orphaned: >
+      inactive_orphaned: |
         {% set result = namespace(list=[]) %}
         {% for entity_id in current_orphaned.entities %}
           {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > (input_number.grace_period_hours | int) * 3600 %}
