@@ -72,31 +72,25 @@ trigger:
     weekday: !input weekdays
 condition: []
 action:
-  - variables:
+  - alias: "Aktuelle verwaiste Entitäten abrufen und filtern"
+    variables:
       grace_period_seconds: "{{ !input grace_period_hours | int * 3600 }}"
-  # 1. Schritt: Alle verwaisten Entitäten abrufen
-  - alias: "Aktuelle verwaiste Entitäten abrufen"
-    service: homeassistant.list_orphaned_database_entities
-    response_variable: current_orphaned
-
-  # 2. Schritt: Liste der Entitäten filtern, die länger als die Karenzzeit inaktiv waren
-  - variables:
-      inactive_orphaned: |
-        {% set result = namespace(list=[]) %}
-        {% for entity_id in current_orphaned.entities %}
-          {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > grace_period_seconds %}
-            {% set result.list = result.list + [entity_id] %}
-          {% endif %}
-        {% endfor %}
-        {{ result.list }}
-
-  # 3. Schritt: Entitäten finden, die gelöscht werden sollen (Schnittmenge der Listen)
-  - variables:
-      history_helper: 'input_text.homeassistant_cleanup_history'
-      last_week_orphaned: "{{ states(history_helper).split(',') if states(history_helper) | length > 0 else [] }}"
-      entities_to_delete: "{{ inactive_orphaned | select('in', last_week_orphaned) | list }}"
-
-  # 4. Schritt: Lösch- und Benachrichtigungslogik ausführen
+    sequence:
+      - service: homeassistant.list_orphaned_database_entities
+        response_variable: current_orphaned
+      - variables:
+          inactive_orphaned: |
+            {% set result = namespace(list=[]) %}
+            {% for entity_id in current_orphaned.entities %}
+              {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > grace_period_seconds %}
+                {% set result.list = result.list + [entity_id] %}
+              {% endif %}
+            {% endfor %}
+            {{ result.list }}
+          history_helper: 'input_text.homeassistant_cleanup_history'
+          last_week_orphaned: "{{ states(history_helper).split(',') if states(history_helper) | length > 0 else [] }}"
+          entities_to_delete: "{{ inactive_orphaned | select('in', last_week_orphaned) | list }}"
+      
   - alias: "Löschen und Benachrichtigen"
     if: "{{ entities_to_delete | count > 0 }}"
     then:
