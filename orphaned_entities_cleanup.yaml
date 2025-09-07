@@ -72,6 +72,8 @@ trigger:
     weekday: !input weekdays
 condition: []
 action:
+  - variables:
+      grace_period_seconds: "{{ !input grace_period_hours | int * 3600 }}"
   # 1. Schritt: Alle verwaisten Entitäten abrufen
   - alias: "Aktuelle verwaiste Entitäten abrufen"
     service: homeassistant.list_orphaned_database_entities
@@ -79,7 +81,6 @@ action:
 
   # 2. Schritt: Liste der Entitäten filtern, die länger als die Karenzzeit inaktiv waren
   - variables:
-      grace_period_seconds: "{{ (24 * 60 * 60) * (!input grace_period_hours) }}"
       inactive_orphaned: |
         {% set result = namespace(list=[]) %}
         {% for entity_id in current_orphaned.entities %}
