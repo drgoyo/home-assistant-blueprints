@@ -52,13 +52,19 @@ blueprint:
           max: 168
           mode: box
           unit_of_measurement: Stunden
-    notification_target:
-      name: Benachrichtigungsziel
-      description: Das Ziel, an das die Benachrichtigungen gesendet werden sollen.
+    mobile_devices:
+      name: Mobile Geräte
+      description: Die mobilen Geräte, an die Benachrichtigungen gesendet werden sollen.
       selector:
-        target:
-          entity:
-            domain: notify
+        device:
+          integration: mobile_app
+          multiple: true
+    send_as_persistent_notification:
+      name: Als persistente Benachrichtigung senden
+      description: Ob die Benachrichtigung zusätzlich in der Home Assistant Web-UI als persistente Benachrichtigung angezeigt werden soll.
+      default: false
+      selector:
+        boolean:
 
 trigger:
   - platform: time
@@ -93,14 +99,24 @@ action:
   - alias: "Löschen und Benachrichtigen"
     if: "{{ entities_to_delete | count > 0 }}"
     then:
-      - alias: "Benachrichtigung mit Liste senden"
-        service: notify.mobile_app_your_device
-        target: !input notification_target
-        data:
-          title: "Home Assistant Cleanup"
-          message: |
-            Die folgenden {{ entities_to_delete | count }} Entitäten, die alle Kriterien erfüllen, werden gelöscht:
-            {{ entities_to_delete | join('\n') }}
+      - alias: "Benachrichtigung an mobile Geräte senden"
+        repeat:
+          for_each: !input mobile_devices
+          sequence:
+            - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+              data:
+                title: "Home Assistant Cleanup"
+                message: |
+                  Die folgenden {{ entities_to_delete | count }} Entitäten, die alle Kriterien erfüllen, werden gelöscht:
+                  {{ entities_to_delete | join('\n') }}
+      - if: !input send_as_persistent_notification
+        then:
+          - service: persistent_notification.create
+            data:
+              title: "Home Assistant Cleanup"
+              message: |
+                Es wurden {{ entities_to_delete | count }} Entitäten gelöscht.
+                Details: {{ entities_to_delete | join(', ') }}
 
       - alias: "Verwaiste Entitäten löschen"
         service: recorder.purge_entities
@@ -109,20 +125,29 @@ action:
           entity_id: "{{ entities_to_delete }}"
 
       - alias: "Abschlussbenachrichtigung senden"
-        service: notify.mobile_app_your_device
-        target: !input notification_target
-        data:
-          title: "Home Assistant Cleanup abgeschlossen"
-          message: "Es wurden {{ entities_to_delete | count }} Entitäten gelöscht."
-
+        repeat:
+          for_each: !input mobile_devices
+          sequence:
+            - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+              data:
+                title: "Home Assistant Cleanup abgeschlossen"
+                message: "Es wurden {{ entities_to_delete | count }} Entitäten gelöscht."
     else:
       - alias: "Keine Entitäten zu löschen"
-        service: notify.mobile_app_your_device
-        target: !input notification_target
-        data:
-          title: "Home Assistant Cleanup"
-          message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
-
+        repeat:
+          for_each: !input mobile_devices
+          sequence:
+            - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+              data:
+                title: "Home Assistant Cleanup"
+                message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
+      - if: !input send_as_persistent_notification
+        then:
+          - service: persistent_notification.create
+            data:
+              title: "Home Assistant Cleanup"
+              message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
+  
   # 5. Schritt: Speichere die aktuelle Liste für die nächste Prüfung
   - service: input_text.set_value
     data:
