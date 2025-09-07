@@ -54,7 +54,7 @@ blueprint:
           unit_of_measurement: Stunden
     notification_service:
       name: Benachrichtigungsdienst
-      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device).
+      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
       selector:
         action: {}
 
