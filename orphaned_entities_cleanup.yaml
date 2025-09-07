@@ -1,6 +1,6 @@
 blueprint:
   name: Flexible, automatische Bereinigung verwaister Entitäten
-  description: "Automatisierte Bereinigung verwaister Entitäten mit konfigurierbarer Karenzzeit und Benachrichtigungen. Erstellt einen internen Helfer für die Historie."
+  description: "Automatisierte Bereinigung verwaister Entitäten mit konfigurierbarer Karenzzeit und Benachrichtigungen."
   domain: automation
   source_url: https://gist.github.com/your-username/your-gist-id
   input:
@@ -32,8 +32,18 @@ blueprint:
       default: "03:00:00"
       selector:
         time:
+    grace_period_weeks:
+      name: Karenzzeit (in Wochen)
+      description: Die Anzahl der Wochen, die eine Entität verwaist bleiben muss, bevor sie gelöscht wird.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 4
+          mode: box
+          unit_of_measurement: Wochen
     grace_period_hours:
-      name: Karenzzeit (in Stunden)
+      name: Zusätzliche Karenzzeit (in Stunden)
       description: Die Dauer, die eine Entität inaktiv sein muss, bevor sie gelöscht wird.
       default: 78
       selector:
@@ -44,9 +54,10 @@ blueprint:
           unit_of_measurement: Stunden
     notification_service:
       name: Benachrichtigungsdienst
-      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
+      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device).
       selector:
-        action: {}
+        action:
+          domain: notify
 
 trigger:
   - platform: time
@@ -65,7 +76,7 @@ action:
       inactive_orphaned: |
         {% set result = namespace(list=[]) %}
         {% for entity_id in current_orphaned.entities %}
-          {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > (input_number.grace_period_hours | int) * 3600 %}
+          {% if states(entity_id) == 'unavailable' and as_timestamp(now()) - as_timestamp(states[entity_id].last_changed) > (!input grace_period_hours | int) * 3600 %}
             {% set result.list = result.list + [entity_id] %}
           {% endif %}
         {% endfor %}
