@@ -52,11 +52,13 @@ blueprint:
           max: 168
           mode: box
           unit_of_measurement: Stunden
-    notification_service:
-      name: Benachrichtigungsdienst
-      description: Der Dienst, der die Benachrichtigungen senden soll (z.B. notify.mobile_app_your_device oder notify.alexa_media).
+    notification_target:
+      name: Benachrichtigungsziel
+      description: Das Ziel, an das die Benachrichtigungen gesendet werden sollen.
       selector:
-        action: {}
+        target:
+          entity:
+            domain: notify
 
 trigger:
   - platform: time
@@ -92,7 +94,8 @@ action:
     if: "{{ entities_to_delete | count > 0 }}"
     then:
       - alias: "Benachrichtigung mit Liste senden"
-        service: !input notification_service
+        service: notify.mobile_app_your_device
+        target: !input notification_target
         data:
           title: "Home Assistant Cleanup"
           message: |
@@ -106,14 +109,16 @@ action:
           entity_id: "{{ entities_to_delete }}"
 
       - alias: "Abschlussbenachrichtigung senden"
-        service: !input notification_service
+        service: notify.mobile_app_your_device
+        target: !input notification_target
         data:
           title: "Home Assistant Cleanup abgeschlossen"
           message: "Es wurden {{ entities_to_delete | count }} Entitäten gelöscht."
 
     else:
       - alias: "Keine Entitäten zu löschen"
-        service: !input notification_service
+        service: notify.mobile_app_your_device
+        target: !input notification_target
         data:
           title: "Home Assistant Cleanup"
           message: "Keine Entitäten gefunden, die die Kriterien für eine Löschung erfüllen."
